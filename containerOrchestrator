@@ -30,6 +30,11 @@ Pod pods[NUM_PODS];
 MasterNode master;
 pthread_t worker_threads[NUM_PODS];
 
+*/ O algoritmo de escalonamento personalizado funciona da seguinte forma:
+Para cada pod, calcula uma pontuação com base na quantidade de recursos (CPU, memória e espaço em disco) que o pod requer e na quantidade de recursos disponíveis no nó de trabalho.
+Se um nó de trabalho tiver recursos suficientes para alocar o pod (ou seja, a pontuação calculada for maior que uma pontuação de referência negativa), o pod é alocado a esse nó de trabalho.
+Se nenhum nó de trabalho tiver recursos suficientes para alocar o pod, o pod é marcado como pendente.*/
+
 int calculate_custom_score(int worker_id, int pod_id) {
     int score = 0;
 
