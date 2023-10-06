@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include <unistd.h> // for sleep
-#include <limits.h> // for INT_MIN
-#include <time.h>   // for time measurement
+#include <unistd.h>
+#include <limits.h>
+#include <time.h>
 
 #define NUM_WORKERS 2
 #define NUM_PODS 15
@@ -13,7 +13,7 @@ typedef struct {
     int cpu;
     int memory;
     int disk_space;
-    int is_pending; // New field to track pending status
+    int is_pending;
 } Pod;
 
 typedef struct {
@@ -29,8 +29,8 @@ typedef struct {
 
 Pod pods[NUM_PODS];
 MasterNode master;
+pthread_t worker_threads[NUM_PODS];
 
-// Function to calculate a custom score based on CPU, memory, and disk_space availability
 int calculate_custom_score(int worker_id, int pod_id) {
     int score = 0;
 
@@ -56,50 +56,10 @@ int calculate_custom_score(int worker_id, int pod_id) {
     return score;
 }
 
-// Function to allocate a pod to a worker using the custom scoring logic
-void allocate_pod(int pod_id) {
-    int best_worker_id = -1;  // Initialize to an invalid value
-    int best_score = INT_MIN; // Initialize to a very low score
+// Forward declaration of retry_pending_pods
+void retry_pending_pods();
 
-    for (int worker_id = 0; worker_id < NUM_WORKERS; worker_id++) {
-        // Calculate a score for this worker/node based on custom scoring logic
-        int score = calculate_custom_score(worker_id, pod_id);
-
-        // Check if this worker is better than the current best and has sufficient resources
-        if (score > best_score && score != INT_MIN) {
-            best_score = score;
-            best_worker_id = worker_id;
-        }
-    }
-
-    if (best_worker_id != -1) {
-        // Allocate resources to the best worker/node
-        master.workers[best_worker_id].available_cpu -= pods[pod_id].cpu;
-        master.workers[best_worker_id].available_memory -= pods[pod_id].memory;
-        master.workers[best_worker_id].available_disk_space -= pods[pod_id].disk_space;
-
-        printf("POD %d allocated to Worker %d (Score: %d). Resources remaining on Worker %d: CPU=%d, Memory=%d, Disk=%d\n",
-            pod_id, best_worker_id, best_score, best_worker_id, master.workers[best_worker_id].available_cpu,
-            master.workers[best_worker_id].available_memory, master.workers[best_worker_id].available_disk_space);
-
-        // Mark the pod as successfully allocated
-        pods[pod_id].is_pending = 0;
-    } else {
-        // Handle the case where no suitable node is found
-        printf("No suitable worker found for POD %d. Marking as pending.\n", pod_id);
-    }
-}
-
-// Function to retry executing pending PODs
-void retry_pending_pods() {
-    for (int pod_id = 0; pod_id < NUM_PODS; pod_id++) {
-        if (pods[pod_id].is_pending) {
-            allocate_pod(pod_id); // Attempt allocation using custom scoring logic
-        }
-    }
-}
-
-// Function to simulate running a POD
+// Declare the simulate_pod function before allocate_pod
 void* simulate_pod(void* arg) {
     int pod_id = *((int*)arg);
 
@@ -123,11 +83,50 @@ void* simulate_pod(void* arg) {
     return NULL;
 }
 
+void allocate_pod(int pod_id) {
+    int best_worker_id = -1;
+    int best_score = INT_MIN;
+
+    for (int worker_id = 0; worker_id < NUM_WORKERS; worker_id++) {
+        int score = calculate_custom_score(worker_id, pod_id);
+
+        if (score > best_score && score != INT_MIN) {
+            best_score = score;
+            best_worker_id = worker_id;
+        }
+    }
+
+    if (best_worker_id != -1) {
+        master.workers[best_worker_id].available_cpu -= pods[pod_id].cpu;
+        master.workers[best_worker_id].available_memory -= pods[pod_id].memory;
+        master.workers[best_worker_id].available_disk_space -= pods[pod_id].disk_space;
+
+        printf("POD %d allocated to Worker %d (Score: %d). Resources remaining on Worker %d: CPU=%d, Memory=%d, Disk=%d\n",
+            pod_id, best_worker_id, best_score, best_worker_id, master.workers[best_worker_id].available_cpu,
+            master.workers[best_worker_id].available_memory, master.workers[best_worker_id].available_disk_space);
+
+        pods[pod_id].is_pending = 0;
+
+        int* pod_id_thread = malloc(sizeof(int));
+        *pod_id_thread = pod_id;
+        pthread_create(&worker_threads[pod_id], NULL, simulate_pod, pod_id_thread);
+    } else {
+        printf("No suitable worker found for POD %d. Marking as pending.\n", pod_id);
+    }
+}
+
+void retry_pending_pods() {
+    for (int pod_id = 0; pod_id < NUM_PODS; pod_id++) {
+        if (pods[pod_id].is_pending) {
+            allocate_pod(pod_id); // Attempt allocation using custom scoring logic
+        }
+    }
+}
+
 int main() {
     clock_t start_time, end_time;
     double cpu_time_used;
 
-    // Record the starting time
     start_time = clock();
 
     printf("\n***** PODS AND WORKERS CREATION *****\n\n");
@@ -162,25 +161,18 @@ int main() {
 
     printf("\n***** ALLOCATION AND RUN PROCESS *****\n\n");
 
-    // Create worker threads for each POD and allocate them using custom scheduling logic
-    pthread_t worker_threads[NUM_PODS];
-
     // Declare an array to keep track of the number of pods allocated to each worker
     int pods_allocated_to_worker[NUM_WORKERS] = {0};
 
+
     for (int i = 0; i < NUM_PODS; i++) {
-        int* pod_id = malloc(sizeof(int));
-        *pod_id = i;
-        allocate_pod(i); // Allocate pod to a worker using custom scheduling logic
-        pthread_create(&worker_threads[i], NULL, simulate_pod, pod_id);
+        allocate_pod(i);
     }
 
-    // Join worker threads
     for (int i = 0; i < NUM_PODS; i++) {
         pthread_join(worker_threads[i], NULL);
     }
 
-    // Record the ending time
     end_time = clock();
 
     printf("\n***** EXECUTION STATISTICS *****\n\n");
