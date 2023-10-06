@@ -3,7 +3,6 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <limits.h>
-#include <time.h>
 
 #define NUM_WORKERS 2
 #define NUM_PODS 15
@@ -124,11 +123,6 @@ void retry_pending_pods() {
 }
 
 int main() {
-    clock_t start_time, end_time;
-    double cpu_time_used;
-
-    start_time = clock();
-
     printf("\n***** PODS AND WORKERS CREATION *****\n\n");
 
     // Initialize PODs with different computing capacities
@@ -173,19 +167,13 @@ int main() {
         pthread_join(worker_threads[i], NULL);
     }
 
-    end_time = clock();
-
     printf("\n***** EXECUTION STATISTICS *****\n\n");
-
-    // Calculate the CPU time used
-    cpu_time_used = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
 
     // Calculate and display statistics
     int total_allocated_cpu = 0;
     int total_allocated_memory = 0;
     int total_allocated_disk_space = 0;
 
-    int total_execution_time = 0;
     int total_successful_allocations = 0;
     int total_failed_allocations = 0;
 
@@ -197,7 +185,6 @@ int main() {
             total_allocated_cpu += pods[i].cpu;
             total_allocated_memory += pods[i].memory;
             total_allocated_disk_space += pods[i].disk_space;
-            total_execution_time += 1; // Assuming each pod takes 1 second to execute
 
             // Increment the count of pods allocated to the worker
             int worker_id = i % NUM_WORKERS;
@@ -209,7 +196,6 @@ int main() {
     printf("Total CPU Allocated: %d\n", total_allocated_cpu);
     printf("Total Memory Allocated: %d\n", total_allocated_memory);
     printf("Total Disk Space Allocated: %d\n", total_allocated_disk_space);
-    printf("Total Execution Time: %f seconds\n", cpu_time_used);
     printf("Total Successful Allocations: %d\n", total_successful_allocations);
     printf("Total Failed Allocations (Pending Pods): %d\n", total_failed_allocations);
 
