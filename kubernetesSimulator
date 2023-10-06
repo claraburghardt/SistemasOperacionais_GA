@@ -28,40 +28,32 @@ Pod pods[NUM_PODS];
 MasterNode master;
 pthread_t worker_threads[NUM_PODS];
 
+// Function to calculate a custom score for allocating a pod to a worker
 int calculate_custom_score(int worker_id, int pod_id) {
     int score = 0;
 
-    // Calculate the available resources on the worker node
     int available_cpu = master.workers[worker_id].available_cpu;
     int available_memory = master.workers[worker_id].available_memory;
 
-    // Calculate the remaining resources after allocating the pod
     int remaining_cpu = available_cpu - pods[pod_id].cpu;
     int remaining_memory = available_memory - pods[pod_id].memory;
 
-    // Check if the node has sufficient resources for the pod
     if (remaining_cpu >= 0 && remaining_memory >= 0) {
-        // Calculate a score based on the remaining resources
         score = remaining_cpu + remaining_memory;
     } else {
-        // Penalize nodes that don't have sufficient resources
         score = INT_MIN;
     }
-
     return score;
 }
 
 // Forward declaration of retry_pending_pods
 void retry_pending_pods();
 
-// Declare the simulate_pod function before allocate_pod
+// Function executed by worker threads to simulate pod execution
 void* simulate_pod(void* arg) {
     int pod_id = *((int*)arg);
-
-    // Simulate POD execution (sleep for a while)
     sleep(1);
 
-    // Release resources
     int worker_id = pod_id % NUM_WORKERS;
     master.workers[worker_id].available_cpu += pods[pod_id].cpu;
     master.workers[worker_id].available_memory += pods[pod_id].memory;
@@ -69,7 +61,7 @@ void* simulate_pod(void* arg) {
     printf("POD %d finished execution on Worker %d. Resources released: CPU=%d, Memory=%d\n",
         pod_id, worker_id, pods[pod_id].cpu, pods[pod_id].memory);
 
-    free(arg); // Free memory allocated for the argument
+    free(arg);
 
     // Retry allocating pending pods
     retry_pending_pods();
@@ -77,20 +69,25 @@ void* simulate_pod(void* arg) {
     return NULL;
 }
 
+// Function to allocate a pod to a worker based on custom scoring logic
 void allocate_pod(int pod_id) {
     int best_worker_id = -1;
     int best_score = INT_MIN;
 
+    // Iterate through available worker nodes to find the best fit
     for (int worker_id = 0; worker_id < NUM_WORKERS; worker_id++) {
         int score = calculate_custom_score(worker_id, pod_id);
 
+        // Update the best worker if a better score is found
         if (score > best_score && score != INT_MIN) {
             best_score = score;
             best_worker_id = worker_id;
         }
     }
 
+    // Allocate the pod to the best worker if one is found
     if (best_worker_id != -1) {
+        // Deduct allocated resources from the worker
         master.workers[best_worker_id].available_cpu -= pods[pod_id].cpu;
         master.workers[best_worker_id].available_memory -= pods[pod_id].memory;
 
@@ -98,8 +95,9 @@ void allocate_pod(int pod_id) {
             pod_id, best_worker_id, best_score, best_worker_id, master.workers[best_worker_id].available_cpu,
             master.workers[best_worker_id].available_memory);
 
-        pods[pod_id].is_pending = 0;
+        pods[pod_id].is_pending = 0; // Mark the pod as no longer pending
 
+        // Create a new thread to simulate pod execution
         int* pod_id_thread = malloc(sizeof(int));
         *pod_id_thread = pod_id;
         pthread_create(&worker_threads[pod_id], NULL, simulate_pod, pod_id_thread);
@@ -108,6 +106,7 @@ void allocate_pod(int pod_id) {
     }
 }
 
+// Function to retry allocating pending pods
 void retry_pending_pods() {
     for (int pod_id = 0; pod_id < NUM_PODS; pod_id++) {
         if (pods[pod_id].is_pending) {
@@ -134,6 +133,7 @@ int main() {
         master.workers[i].available_memory = 10;  // Total Memory capacity of Worker
     }
 
+    // Display the configuration of PODs and Workers
     for (int i = 0; i < NUM_PODS; i++) {
         printf("POD %d: CPU=%d, Memory=%d\n",
             pods[i].pod_id, pods[i].cpu, pods[i].memory);
@@ -150,11 +150,12 @@ int main() {
     // Declare an array to keep track of the number of pods allocated to each worker
     int pods_allocated_to_worker[NUM_WORKERS] = {0};
 
-
+    // Allocate pods to workers
     for (int i = 0; i < NUM_PODS; i++) {
         allocate_pod(i);
     }
 
+    // Wait for all worker threads to finish execution
     for (int i = 0; i < NUM_PODS; i++) {
         pthread_join(worker_threads[i], NULL);
     }
@@ -164,6 +165,7 @@ int main() {
     // Calculate and display statistics
     int total_allocated_cpu = 0;
     int total_allocated_memory = 0;
+
     int total_successful_allocations = 0;
     int total_failed_allocations = 0;
 
