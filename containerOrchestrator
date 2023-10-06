@@ -1,7 +1,7 @@
 #include <stdio.h>      // Standard Input/Output Library
 #include <stdlib.h>     // Standard Library
-#include <pthread.h>    // POSIX Threads Library
-#include <unistd.h>     // POSIX Operating System Interface Library
+#include <pthread.h>    // Threads Library
+#include <unistd.h>     // OS Interface Library
 #include <limits.h>     // Library for Integer Types and Constants
 
 #define NUM_WORKERS 2
