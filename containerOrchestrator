@@ -16,7 +16,7 @@ typedef struct {
     int is_pending;         // Flag to indicate if the pod is pending allocation
 } Pod;
 
-// Define a structure to represent a Worker node
+// Define a structure to represent a Worker Node
 typedef struct {
     int worker_id;          // Unique identifier for the worker node
     int available_cpu;      // Available CPU resources on the worker node
@@ -24,7 +24,7 @@ typedef struct {
     int available_disk_space; // Available disk space on the worker node
 } Worker;
 
-// Define a structure to represent the Master Node managing workers
+// Define a structure to represent the Master Node
 typedef struct {
     Worker workers[NUM_WORKERS]; // Array of worker nodes
 } MasterNode;
@@ -60,7 +60,6 @@ int calculate_custom_score(int worker_id, int pod_id) {
         // Penalize nodes that don't have sufficient resources
         score = INT_MIN;
     }
-
     return score;
 }
 
